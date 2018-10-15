@@ -105,5 +105,5 @@ venv.bak/
 
 # local files
 Pipfile.lock
-utils.log
+classificador.log
 db

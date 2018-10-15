@@ -6,7 +6,6 @@ name = "pypi"
 [packages]
 python-dateutil = "*"
 python-docx = "*"
-dicttoxml = "*"
 
 [dev-packages]
 

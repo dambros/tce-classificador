@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import csv
 import glob
 import json
 import logging.config
@@ -6,77 +7,94 @@ import os
 import re
 from datetime import datetime
 from itertools import islice
-from xml.dom.minidom import parseString
 
-import dicttoxml
 from dateutil.parser import parse
 from docx import Document
+from docx.opc.exceptions import PackageNotFoundError
+from lxml import etree
 
 import config
 
 
-def cli():
-    """
+def main():
+    results = []
+    for docs_path in config.SHARED_FOLDER_PATHS:
+        results.append(classify(docs_path))
 
-    Script responsável por classificar documentos do tipo docx baseado nas regras
-    fornecidas pelo TCE e escrever tais categorias em um XML respeitando o mesmo
-    path do arquivo original.
+    for result in results:
+        write_xml(result)
 
-           classifier.py classify
-
-       For detailed help, try this:
-
-           classifier.py classify --help
-       """
-    pass
+    keys = ['path', 'parent', 'child']
+    write_csv(config.SUMMARY_PATH, results, keys)
 
 
-def classify():
-    doc_lists = []
-    for doc_path in config.SHARED_FOLDER_PATHS:
-        path = get_path(doc_path, 'docx')
-        doc_lists.append(glob.glob(path, recursive=True))
+def classify(docs_path):
+    path = get_path(docs_path, 'docx')
+    last_mod_dates = get_last_modifications_dates()
+    doc_list = glob.glob(path, recursive=True)
 
-    last_index_date = get_last_index_date()
+    results = []
+    if last_mod_dates and docs_path in last_mod_dates:
+        last_mod_date = parse(last_mod_dates[docs_path])
+        filter_files_after(doc_list, last_mod_date)
 
-    result = {}
-    for doc_list in doc_lists:
-        if last_index_date:
-            filter_files_after(doc_list, last_index_date)
-
-        if doc_list:
-            for doc in doc_list:
+    if doc_list:
+        for doc in doc_list:
+            result = {}
+            try:
                 root_category = get_root_category(doc)
-                result[doc] = {'parent': root_category}
+                result['path'] = doc
+                result['parent'] = root_category
                 if root_category not in ['Geral', 'Despacho']:
                     sub_category = get_sub_category(doc, root_category)
                     if sub_category:
-                        result[doc]['child'] = sub_category
+                        result['child'] = sub_category
+                results.append(result)
+            except PackageNotFoundError:
+                logger.error(doc)
 
-            write_xml(result)
-            write_file(config.SUMMARY_PATH,
-                       json.dumps(result, indent=1, ensure_ascii=False))
-            save_current_modification_date()
+        save_current_modification_date(docs_path)
+
+    return results
 
 
-def write_xml(result):
-    for name, value in result.items():
-        xml_path = re.sub(r'^/', '', re.sub(r'docx$', 'xml', name))
+def write_xml(results):
+    for result in results:
+        xml_path = re.sub(r'^/', '', re.sub(r'docx$', 'xml', result['path']))
         xml_path = os.path.join(config.XML_FOLDER_PATH, xml_path)
-        categories = {'categories': value}
-        xml = dicttoxml.dicttoxml(categories, attr_type=False)
-        dom = parseString(xml)
-        write_file(xml_path, dom.toprettyxml())
+
+        root = etree.Element('root')
+        categories = etree.SubElement(root, 'categories')
+        parent = etree.SubElement(categories, 'parent')
+        parent.text = result['parent']
+
+        if 'child' in result.keys():
+            child = etree.SubElement(categories, 'child')
+            child.text = result['child']
+
+        write_file(xml_path,
+                   etree.tostring(root, pretty_print=True, encoding='unicode'))
 
 
 def write_file(filename, content):
+    create_directory_if_not_exists(filename)
+    with open(filename, 'w') as file:
+        file.write(content)
+
+
+def write_csv(filename, content, keys=[]):
+    create_directory_if_not_exists(filename)
+    with open(filename, 'w') as file:
+        writer = csv.DictWriter(file, keys, delimiter=';')
+        writer.writeheader()
+        for row in content:
+            writer.writerows(row)
+
+
+def create_directory_if_not_exists(filename):
     directory = os.path.dirname(filename)
     if not os.path.exists(directory):
         os.makedirs(directory)
-
-    with open(filename, 'w') as file:
-        file.write(content)
-        file.close()
 
 
 def get_root_category(doc_path):
@@ -88,7 +106,8 @@ def get_root_category(doc_path):
         text = p.text.lower()
         if text:
             for name, values_list in config.ROOT_CATEGORIES.items():
-                if values_list[0].lower() in text:
+                if re.search(r'\b' + values_list[0].lower() + r'\b',
+                             text.lower()):
                     return name
 
     reversed_paragraphs = reversed(paragraphs)
@@ -97,7 +116,8 @@ def get_root_category(doc_path):
         text = p.text.lower()
         if text:
             for name, values_list in config.ROOT_CATEGORIES.items():
-                if values_list[-1].lower() in text:
+                if re.search(r'\b' + values_list[-1].lower() + r'\b',
+                             text.lower()):
                     return name
 
     return 'Geral'
@@ -112,23 +132,30 @@ def get_sub_category(doc_path, root_category):
         text = p.text.lower()
         if text:
             for root, subs in config.SUB_CATEGORIES[root_category].items():
-                if any(sub_category in text for sub_category in subs):
-                    return root
+                for sub in subs:
+                    if re.search(r'\b' + sub.lower() + r'\b', text.lower()):
+                        return root
 
 
-def get_last_index_date():
+def get_last_modifications_dates():
     if os.path.isfile(config.DB_PATH):
         with open(config.DB_PATH, 'r') as f:
-            last_date = f.read()
-            return parse(last_date)
+            return json.load(f)
 
     return None
 
 
-def save_current_modification_date():
-    with open(config.DB_PATH, 'w+') as f:
-        curr_time = datetime.now().isoformat()
-        f.write(curr_time)
+def save_current_modification_date(root_folder):
+    mod_dates = get_last_modifications_dates()
+    if mod_dates:
+        mod_dates[root_folder] = datetime.now().isoformat()
+    else:
+        mod_dates = {
+            root_folder: datetime.now().isoformat()
+        }
+
+    write_file(config.DB_PATH,
+               json.dumps(mod_dates, indent=1, ensure_ascii=False))
 
 
 def filter_files_after(files, last_modified_date):
@@ -146,4 +173,6 @@ def get_path(folder, extension):
 if __name__ == "__main__":
     logging.config.fileConfig(config.LOG_CONFIG_PATH)
     logger = logging.getLogger(os.path.basename(__file__))
-    classify()
+    startTime = datetime.now()
+    main()
+    print(datetime.now() - startTime)
