@@ -107,9 +107,9 @@ def get_root_category(doc_path):
         text = p.text.lower()
         if text:
             for name, values_list in config.ROOT_CATEGORIES.items():
-                if re.search(r'\b' + values_list[0].lower() + r'\b',
-                             text.lower()):
-                    return name
+                for value in values_list:
+                    if re.search(r'\b' + value.lower() + r'\b', text.lower()):
+                        return name
 
     reversed_paragraphs = reversed(paragraphs)
     last_paragraphs = islice(reversed_paragraphs, 20)
@@ -117,9 +117,9 @@ def get_root_category(doc_path):
         text = p.text.lower()
         if text:
             for name, values_list in config.ROOT_CATEGORIES.items():
-                if re.search(r'\b' + values_list[-1].lower() + r'\b',
-                             text.lower()):
-                    return name
+                for value in reversed(values_list):
+                    if re.search(r'\b' + value.lower() + r'\b', text.lower()):
+                        return name
 
     return 'Geral'
 

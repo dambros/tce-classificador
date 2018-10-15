@@ -8,12 +8,12 @@ XML_FOLDER_PATH = '/Users/dambros/Downloads/documentos_classificar/xml/'
 SUMMARY_PATH = '/Users/dambros/Downloads/documentos_classificar/xml/summary.csv'
 FIRST_PAGE_PARAGRAPHS = 20
 
-
 # não alterar
 LOG_CONFIG_PATH = './res/configs/logging.ini'
 DB_PATH = './res/db'
 ROOT_CATEGORIES = {
-    'Relatório Voto': ['relatório voto', 'é o voto'],
+    'Relatório Voto': ['relatório voto', 'relatório e voto', 'é o voto',
+                       'é como voto'],
     'Decisão Singular': ['decisão singular', 'é a decisão'],
     'Despacho': ['despacho']
 }
