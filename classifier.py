@@ -24,8 +24,9 @@ def main():
     for result in results:
         write_xml(result)
 
-    keys = ['path', 'parent', 'child']
-    write_csv(config.SUMMARY_PATH, results, keys)
+    if config.SUMMARY_PATH:
+        keys = ['path', 'parent', 'child']
+        write_csv(config.SUMMARY_PATH, results, keys)
 
 
 def classify(docs_path):
@@ -173,6 +174,4 @@ def get_path(folder, extension):
 if __name__ == "__main__":
     logging.config.fileConfig(config.LOG_CONFIG_PATH)
     logger = logging.getLogger(os.path.basename(__file__))
-    startTime = datetime.now()
     main()
-    print(datetime.now() - startTime)
