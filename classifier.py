@@ -66,12 +66,10 @@ def write_xml(results):
 
         root = etree.Element('root')
         categories = etree.SubElement(root, 'categories')
-        parent = etree.SubElement(categories, 'parent')
-        parent.text = result['parent']
+        categories.text = result['parent']
 
         if 'child' in result.keys():
-            child = etree.SubElement(categories, 'child')
-            child.text = result['child']
+            categories.text += '/' + result['child']
 
         write_file(xml_path,
                    etree.tostring(root, pretty_print=True, encoding='unicode'))
