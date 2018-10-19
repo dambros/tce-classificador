@@ -67,6 +67,8 @@ def write_xml(results):
         root = etree.Element('root')
         categories = etree.SubElement(root, 'categories')
         categories.text = result['parent']
+        file_path = etree.SubElement(root, 'file_path')
+        file_path.text = result['path']
 
         if 'child' in result.keys():
             categories.text += '/' + result['child']
@@ -172,4 +174,6 @@ def get_path(folder, extension):
 if __name__ == "__main__":
     logging.config.fileConfig(config.LOG_CONFIG_PATH)
     logger = logging.getLogger(os.path.basename(__file__))
+    startTime = datetime.now()
     main()
+    logger.info(f'Script finalizado em {datetime.now() - startTime}')
