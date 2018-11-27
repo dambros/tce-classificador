@@ -74,6 +74,8 @@ def write_xml(results):
         categories.text = result['parent']
         file_path = etree.SubElement(root, 'file_path')
         file_path.text = result['path']
+        file_name = etree.SubElement(root, 'file_name')
+        file_name.text = os.path.basename(result['path'])
 
         if 'child' in result.keys():
             categories.text += '/' + result['child']
