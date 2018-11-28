@@ -55,7 +55,7 @@ def classify(docs_path):
                         if sub_category:
                             result['child'] = sub_category
                     results.append(result)
-                except PackageNotFoundError:
+                except Exception:
                     logger.error(doc)
 
             save_current_modification_date(docs_path)
